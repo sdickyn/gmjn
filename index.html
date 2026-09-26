@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Pembayaran WiFi (Google Sheets)</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --text: #0f172a;
+            --border: #e2e8f0;
+            --success: #16a34a;
+            --danger: #dc2626;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        h1, h2, h3 { margin-bottom: 15px; }
+        
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 10px; }
+        .tab-btn { padding: 10px 20px; border: none; background: #e2e8f0; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .tab-btn.active { background: var(--primary); color: white; }
+
+        .card { background: var(--surface); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.9em; }
+        input, select, textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 1em; }
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+
+        .table-responsive { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.9em; }
+        th { background-color: #f1f5f9; }
+
+        .badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em; }
+        .badge-success { background: #dcfce7; color: #15803d; }
+        .badge-danger { background: #fee2e2; color: #b91c1c; }
+
+        .hidden { display: none; }
+
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .summary-card { background: white; padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .summary-card h4 { font-size: 0.85em; color: #64748b; margin-bottom: 5px; }
+        .summary-card p { font-size: 1.3em; font-weight: bold; }
+
+        /* Loading Indicator */
+        #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.7); display: flex; justify-content: center; align-items: center; font-size: 1.2em; font-weight: bold; z-index: 9999; }
+    </style>
+</head>
+<body>
+
+<div id="loading" class="hidden">Memuat data dari Google Sheets...</div>
+
+<div class="container">
+    <h1>Sistem Pembayaran WiFi (Online Google Sheets)</h1>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('pelanggan')">Data Pelanggan</button>
+        <button class="tab-btn" onclick="switchTab('pembayaran')">Transaksi & Tagihan</button>
+        <button class="tab-btn" onclick="switchTab('laporan')">Laporan</button>
+        <button class="tab-btn" onclick="loadDataFromSheets()" style="margin-left: auto; background: #059669; color: white;">🔄 Refresh Data</button>
+    </div>
+
+    <!-- TAB 1: DATA PELANGGAN -->
+    <div id="tab-pelanggan" class="tab-content">
+        <div class="card">
+            <h3>Tambah / Edit Pelanggan</h3>
+            <form id="form-pelanggan" onsubmit="savePelanggan(event)">
+                <input type="hidden" id="pelanggan-id">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nama Pelanggan</label>
+                        <input type="text" id="nama" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Kelompok Pelanggan</label>
+                        <select id="kelompok" onchange="toggleOpsiKelompok(this.value)" required></select>
+                        <input type="text" id="kelompok-baru" placeholder="Masukkan Kelompok Baru" class="hidden" style="margin-top: 5px;">
+                    </div>
+                    <div class="form-group">
+                        <label>Nomor HP (WhatsApp)</label>
+                        <input type="tel" id="nohp" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Alamat</label>
+                        <input type="text" id="alamat" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Link Shareloc Maps</label>
+                        <input type="url" id="maps" placeholder="https://maps.google.com/...">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Tanggal Mulai Aktif</label>
+                        <input type="date" id="tgl_aktif" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Paket WiFi</label>
+                        <input type="text" id="paket" placeholder="Contoh: 10 Mbps" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Harga Paket (Rp)</label>
+                        <input type="number" id="harga" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Simpan ke Google Sheets</button>
+                <button type="button" class="btn" onclick="resetFormPelanggan()">Batal</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Daftar Pelanggan</h3>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nama</th>
+                            <th>Kelompok</th>
+                            <th>No HP</th>
+                            <th>Paket</th>
+                            <th>Harga</th>
+                            <th>Tgl Aktif</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabel-pelanggan-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: TRANSAKSI / PEMBAYARAN -->
+    <div id="tab-pembayaran" class="tab-content hidden">
+        <div class="card">
+            <h3>Catat Pembayaran Tagihan</h3>
+            <form id="form-pembayaran" onsubmit="savePembayaran(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Pilih Pelanggan</label>
+                        <select id="trans-pelanggan" onchange="autoFillTagihan()" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Bulan / Tahun Tagihan</label>
+                        <input type="month" id="trans-periode" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Tanggal Bayar</label>
+                        <input type="date" id="trans-tgl-bayar" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nominal Tagihan (Rp)</label>
+                        <input type="number" id="trans-harga" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Opsi Fee Agen</label>
+                        <select id="trans-fee-opt" onchange="toggleFeeCustom(this.value)">
+                            <option value="50000">Rp 50.000</option>
+                            <option value="25000">Rp 25.000</option>
+                            <option value="custom">Input Custom</option>
+                            <option value="0">Tidak Ada (0)</option>
+                        </select>
+                        <input type="number" id="trans-fee-custom" placeholder="Nominal Fee Custom" class="hidden" style="margin-top: 5px;">
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="trans-status">
+                            <option value="Lunas">Lunas</option>
+                            <option value="Belum Lunas">Belum Lunas</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-success">Simpan Pembayaran</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- TAB 3: LAPORAN -->
+    <div id="tab-laporan" class="tab-content hidden">
+        <div class="card">
+            <h3>Filter Laporan</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Bulan Laporan</label>
+                    <input type="month" id="filter-bulan" onchange="renderLaporan()">
+                </div>
+                <div class="form-group">
+                    <label>Kelompok</label>
+                    <select id="filter-kelompok" onchange="renderLaporan()">
+                        <option value="all">Semua Kelompok</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Status Pembayaran</label>
+                    <select id="filter-status" onchange="renderLaporan()">
+                        <option value="all">Semua Status</option>
+                        <option value="Lunas">Lunas</option>
+                        <option value="Belum Lunas">Belum Lunas</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="summary-grid">
+            <div class="summary-card">
+                <h4>Total Tagihan Kotor</h4>
+                <p id="stat-total-kotor">Rp 0</p>
+            </div>
+            <div class="summary-card">
+                <h4>Total Fee Agen</h4>
+                <p id="stat-total-fee">Rp 0</p>
+            </div>
+            <div class="summary-card">
+                <h4>Total Pendapatan Bersih</h4>
+                <p id="stat-total-bersih">Rp 0</p>
+            </div>
+            <div class="summary-card">
+                <h4>Status Pelunasan</h4>
+                <p id="stat-pelunasan">0 Lunas / 0 Belum</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Detail Laporan Transaksi</h3>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Periode</th>
+                            <th>Nama Pelanggan</th>
+                            <th>Kelompok</th>
+                            <th>Tgl Bayar</th>
+                            <th>Tagihan</th>
+                            <th>Fee Agen</th>
+                            <th>Bersih</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabel-laporan-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // MASUKKAN URL APPS SCRIPT ANDA DI SINI
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxYYsJc3qzhxAqC_pAMZzLLsWlo-kvQCQj0Y5LTZ5U03bKi8vUzQfs5MQTeOzr_BB3edg/exec"; 
+
+    let dataKelompok = ['Cilibur', 'Sidamukti'];
+    let dataPelanggan = [];
+    let dataTransaksi = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const now = new Date();
+        const yearMonth = now.toISOString().slice(0, 7);
+        document.getElementById('filter-bulan').value = yearMonth;
+        document.getElementById('trans-periode').value = yearMonth;
+        document.getElementById('trans-tgl-bayar').valueAsDate = new Date();
+
+        loadDataFromSheets();
+    });
+
+    function showLoading(show) {
+        document.getElementById('loading').classList.toggle('hidden', !show);
+    }
+
+    async function loadDataFromSheets() {
+        if (SCRIPT_URL.includes("AKfycbx...")) {
+            alert("Harap masukkan URL Google Apps Script yang valid pada variabel SCRIPT_URL di dalam kode!");
+            return;
+        }
+        showLoading(true);
+        try {
+            const res = await fetch(SCRIPT_URL);
+            const data = await res.json();
+            
+            dataKelompok = data.kelompok || ['Cilibur', 'Sidamukti'];
+            dataPelanggan = (data.pelanggan || []).map(p => ({
+                id: Number(p.id),
+                nama: String(p.nama),
+                kelompok: String(p.kelompok),
+                nohp: String(p.no_hp),
+                alamat: String(p.alamat),
+                maps: String(p.maps || ''),
+                tgl_aktif: formatDate(p.tgl_aktif),
+                paket: String(p.paket),
+                harga: Number(p.harga)
+            }));
+            dataTransaksi = (data.transaksi || []).map(t => ({
+                id: Number(t.id),
+                pelangganId: Number(t.pelanggan_id),
+                periode: String(t.periode),
+                tglBayar: formatDate(t.tgl_bayar),
+                tagihan: Number(t.tagihan),
+                feeAgen: Number(t.fee_agen),
+                bersih: Number(t.bersih),
+                status: String(t.status)
+            }));
+
+            renderOptionsKelompok();
+            renderTablePelanggan();
+            renderOptionsPelangganTransaksi();
+            renderLaporan();
+        } catch (err) {
+            alert("Gagal mengambil data dari Google Sheets. Periksa kembali URL Script Anda.");
+            console.error(err);
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function formatDate(val) {
+        if (!val) return '';
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? val : d.toISOString().split('T')[0];
+    }
+
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+        event.target.classList.add('active');
+
+        if (tabName === 'laporan') renderLaporan();
+    }
+
+    function renderOptionsKelompok() {
+        const selectKelompok = document.getElementById('kelompok');
+        const filterKelompok = document.getElementById('filter-kelompok');
+        
+        selectKelompok.innerHTML = '';
+        dataKelompok.forEach(k => {
+            selectKelompok.innerHTML += `<option value="${k}">${k}</option>`;
+        });
+        selectKelompok.innerHTML += `<option value="ADD_NEW">+ Tambah Kelompok Baru</option>`;
+
+        filterKelompok.innerHTML = `<option value="all">Semua Kelompok</option>`;
+        dataKelompok.forEach(k => {
+            filterKelompok.innerHTML += `<option value="${k}">${k}</option>`;
+        });
+    }
+
+    function toggleOpsiKelompok(val) {
+        const inputBaru = document.getElementById('kelompok-baru');
+        if (val === 'ADD_NEW') {
+            inputBaru.classList.remove('hidden');
+            inputBaru.required = true;
+        } else {
+            inputBaru.classList.add('hidden');
+            inputBaru.required = false;
+        }
+    }
+
+    async function savePelanggan(e) {
+        e.preventDefault();
+        const id = document.getElementById('pelanggan-id').value;
+        let kelompokVal = document.getElementById('kelompok').value;
+
+        if (kelompokVal === 'ADD_NEW') {
+            const kelompokBaru = document.getElementById('kelompok-baru').value.trim();
+            if (kelompokBaru) kelompokVal = kelompokBaru;
+        }
+
+        const payload = {
+            id: id ? parseInt(id) : Date.now(),
+            nama: document.getElementById('nama').value,
+            kelompok: kelompokVal,
+            nohp: document.getElementById('nohp').value,
+            alamat: document.getElementById('alamat').value,
+            maps: document.getElementById('maps').value,
+            tgl_aktif: document.getElementById('tgl_aktif').value,
+            paket: document.getElementById('paket').value,
+            harga: parseFloat(document.getElementById('harga').value)
+        };
+
+        showLoading(true);
+        await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'savePelanggan', payload: payload })
+        });
+
+        resetFormPelanggan();
+        await loadDataFromSheets();
+        alert('Data Pelanggan Berhasil Disimpan ke Google Sheets!');
+    }
+
+    function resetFormPelanggan() {
+        document.getElementById('form-pelanggan').reset();
+        document.getElementById('pelanggan-id').value = '';
+        document.getElementById('kelompok-baru').classList.add('hidden');
+    }
+
+    function renderTablePelanggan() {
+        const tbody = document.getElementById('tabel-pelanggan-body');
+        tbody.innerHTML = '';
+
+        dataPelanggan.forEach(p => {
+            const mapsBtn = p.maps ? `<a href="${p.maps}" target="_blank">Maps</a>` : '-';
+            tbody.innerHTML += `
+                <tr>
+                    <td><b>${p.nama}</b><br><small>${p.alamat}</small></td>
+                    <td>${p.kelompok}</td>
+                    <td>${p.nohp} (${mapsBtn})</td>
+                    <td>${p.paket}</td>
+                    <td>Rp ${p.harga.toLocaleString('id-ID')}</td>
+                    <td>${p.tgl_aktif}</td>
+                    <td>
+                        <button class="btn btn-primary" onclick="editPelanggan(${p.id})">Edit</button>
+                        <button class="btn btn-danger" onclick="deletePelanggan(${p.id})">Hapus</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    function editPelanggan(id) {
+        const p = dataPelanggan.find(item => item.id === id);
+        if (!p) return;
+
+        document.getElementById('pelanggan-id').value = p.id;
+        document.getElementById('nama').value = p.nama;
+        document.getElementById('kelompok').value = p.kelompok;
+        document.getElementById('nohp').value = p.nohp;
+        document.getElementById('alamat').value = p.alamat;
+        document.getElementById('maps').value = p.maps;
+        document.getElementById('tgl_aktif').value = p.tgl_aktif;
+        document.getElementById('paket').value = p.paket;
+        document.getElementById('harga').value = p.harga;
+    }
+
+    async function deletePelanggan(id) {
+        if (confirm('Yakin ingin menghapus data pelanggan ini?')) {
+            showLoading(true);
+            await fetch(SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'deletePelanggan', id: id })
+            });
+            await loadDataFromSheets();
+        }
+    }
+
+    function renderOptionsPelangganTransaksi() {
+        const select = document.getElementById('trans-pelanggan');
+        select.innerHTML = '<option value="">-- Pilih Pelanggan --</option>';
+        dataPelanggan.forEach(p => {
+            select.innerHTML += `<option value="${p.id}">${p.nama} - (${p.kelompok})</option>`;
+        });
+    }
+
+    function autoFillTagihan() {
+        const pId = document.getElementById('trans-pelanggan').value;
+        const p = dataPelanggan.find(item => item.id === parseInt(pId));
+        if (p) {
+            document.getElementById('trans-harga').value = p.harga;
+        } else {
+            document.getElementById('trans-harga').value = '';
+        }
+    }
+
+    function toggleFeeCustom(val) {
+        const inputCustom = document.getElementById('trans-fee-custom');
+        if (val === 'custom') {
+            inputCustom.classList.remove('hidden');
+            inputCustom.required = true;
+        } else {
+            inputCustom.classList.add('hidden');
+            inputCustom.required = false;
+        }
+    }
+
+    async function savePembayaran(e) {
+        e.preventDefault();
+        const pId = document.getElementById('trans-pelanggan').value;
+        if (!pId) return alert('Silakan pilih pelanggan');
+
+        const feeOpt = document.getElementById('trans-fee-opt').value;
+        let feeValue = 0;
+        if (feeOpt === 'custom') {
+            feeValue = parseFloat(document.getElementById('trans-fee-custom').value) || 0;
+        } else {
+            feeValue = parseFloat(feeOpt);
+        }
+
+        const periode = document.getElementById('trans-periode').value;
+        const hargaVal = parseFloat(document.getElementById('trans-harga').value);
+
+        const payload = {
+            id: Date.now(),
+            pelangganId: parseInt(pId),
+            periode: periode,
+            tglBayar: document.getElementById('trans-tgl-bayar').value,
+            tagihan: hargaVal,
+            feeAgen: feeValue,
+            bersih: hargaVal - feeValue,
+            status: document.getElementById('trans-status').value
+        };
+
+        showLoading(true);
+        await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'savePembayaran', payload: payload })
+        });
+
+        alert('Pembayaran Berhasil Disimpan!');
+        document.getElementById('form-pembayaran').reset();
+        document.getElementById('trans-tgl-bayar').valueAsDate = new Date();
+        await loadDataFromSheets();
+    }
+
+    function renderLaporan() {
+        const filterBulan = document.getElementById('filter-bulan').value;
+        const filterKelompok = document.getElementById('filter-kelompok').value;
+        const filterStatus = document.getElementById('filter-status').value;
+
+        const tbody = document.getElementById('tabel-laporan-body');
+        tbody.innerHTML = '';
+
+        let totalKotor = 0;
+        let totalFee = 0;
+        let totalBersih = 0;
+        let countLunas = 0;
+        let countBelum = 0;
+
+        dataTransaksi.forEach(t => {
+            const p = dataPelanggan.find(item => item.id === t.pelangganId);
+            if (!p) return;
+
+            if (filterBulan && t.periode !== filterBulan) return;
+            if (filterKelompok !== 'all' && p.kelompok !== filterKelompok) return;
+            if (filterStatus !== 'all' && t.status !== filterStatus) return;
+
+            if (t.status === 'Lunas') {
+                totalKotor += t.tagihan;
+                totalFee += t.feeAgen;
+                totalBersih += t.bersih;
+                countLunas++;
+            } else {
+                countBelum++;
+            }
+
+            const badgeClass = t.status === 'Lunas' ? 'badge-success' : 'badge-danger';
+
+            tbody.innerHTML += `
+                <tr>
+                    <td>${t.periode}</td>
+                    <td><b>${p.nama}</b></td>
+                    <td>${p.kelompok}</td>
+                    <td>${t.tglBayar || '-'}</td>
+                    <td>Rp ${t.tagihan.toLocaleString('id-ID')}</td>
+                    <td>Rp ${t.feeAgen.toLocaleString('id-ID')}</td>
+                    <td><b>Rp ${t.bersih.toLocaleString('id-ID')}</b></td>
+                    <td><span class="badge ${badgeClass}">${t.status}</span></td>
+                </tr>
+            `;
+        });
+
+        document.getElementById('stat-total-kotor').innerText = `Rp ${totalKotor.toLocaleString('id-ID')}`;
+        document.getElementById('stat-total-fee').innerText = `Rp ${totalFee.toLocaleString('id-ID')}`;
+        document.getElementById('stat-total-bersih').innerText = `Rp ${totalBersih.toLocaleString('id-ID')}`;
+        document.getElementById('stat-pelunasan').innerText = `${countLunas} Lunas / ${countBelum} Belum`;
+    }
+</script>
+</body>
+</html>
