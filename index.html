@@ -209,4 +209,333 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1">Tanggal Aktif (Jatuh Tempo)</label>
-                        <input type="number" id="p-tgl" min="1" max="31" required class="w-full p-2 border rounded text-sm" placeholder="1-3
+                        <input type="number" id="p-tgl" min="1" max="31" required class="w-full p-2 border rounded text-sm" placeholder="1-31">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Alamat</label>
+                    <textarea id="p-alamat" rows="2" required class="w-full p-2 border rounded text-sm" placeholder="Alamat lengkap"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Link Google Maps</label>
+                    <input type="url" id="p-maps" class="w-full p-2 border rounded text-sm" placeholder="https://maps.app.goo.gl/...">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Jenis Paket</label>
+                        <input type="text" id="p-paket" required class="w-full p-2 border rounded text-sm" placeholder="10 Mbps">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Harga Paket (Rp)</label>
+                        <input type="number" id="p-harga" required class="w-full p-2 border rounded text-sm" placeholder="150000">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Fee Agen (Rp)</label>
+                        <input type="number" id="p-fee" required class="w-full p-2 border rounded text-sm" placeholder="10000">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Kelompok</label>
+                        <select id="p-kelompok" required class="w-full p-2 border rounded text-sm">
+                            <!-- Diisi via JS -->
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="toggleModalPelanggan(false)" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium cursor-pointer">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium cursor-pointer">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // LocalStorage Data
+        let dataKelompok = JSON.parse(localStorage.getItem('wifi_kelompok')) || [
+            { id: 1, nama: 'Kelompok A', ket: 'Area RT 01 / RW 05' },
+            { id: 2, nama: 'Kelompok B', ket: 'Area RT 02 / RW 05' }
+        ];
+
+        let dataPelanggan = JSON.parse(localStorage.getItem('wifi_pelanggan')) || [
+            { id: 1, nama: 'Budi Santoso', hp: '081234567890', alamat: 'Jl. Merdeka No. 10', maps: '', tgl: 10, paket: '10 Mbps', harga: 150000, fee: 10000, kelompok: 'Kelompok A' }
+        ];
+
+        let dataTransaksi = JSON.parse(localStorage.getItem('wifi_transaksi')) || [
+            { id: 'TRX-001', kelompok: 'Kelompok A', nama: 'Budi Santoso', tanggal: '2026-10-10', nominal: 150000, fee: 10000, jumlah: 140000, status: 'Lunas' }
+        ];
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById('tab-' + tabName).classList.remove('hidden');
+
+            ['pelanggan', 'kelompok', 'transaksi', 'laporan'].forEach(t => {
+                const btn = document.getElementById('btn-' + t);
+                if(t === tabName) {
+                    btn.className = "px-4 py-2 bg-indigo-600 text-white rounded-lg shadow font-medium cursor-pointer";
+                } else {
+                    btn.className = "px-4 py-2 bg-white text-gray-700 rounded-lg shadow font-medium cursor-pointer";
+                }
+            });
+
+            if(tabName === 'kelompok') renderKelompok();
+            if(tabName === 'pelanggan') renderPelanggan();
+            if(tabName === 'transaksi') initFormTransaksi();
+            if(tabName === 'laporan') {
+                initFilterLaporan();
+                renderLaporan();
+            }
+        }
+
+        // --- KELOMPOK ---
+        function toggleModalKelompok(show) {
+            const modal = document.getElementById('modal-kelompok');
+            if(show) modal.classList.remove('hidden');
+            else {
+                modal.classList.add('hidden');
+                document.getElementById('form-kelompok').reset();
+            }
+        }
+
+        function tambahKelompok(e) {
+            e.preventDefault();
+            const nama = document.getElementById('k-nama').value;
+            const ket = document.getElementById('k-ket').value;
+
+            if(dataKelompok.some(k => k.nama.toLowerCase() === nama.toLowerCase())) {
+                alert('Nama kelompok sudah ada!');
+                return;
+            }
+
+            dataKelompok.push({ id: Date.now(), nama, ket });
+            localStorage.setItem('wifi_kelompok', JSON.stringify(dataKelompok));
+            renderKelompok();
+            toggleModalKelompok(false);
+            alert('Kelompok berhasil ditambahkan!');
+        }
+
+        function renderKelompok() {
+            const tbody = document.getElementById('tabel-kelompok-body');
+            tbody.innerHTML = '';
+            dataKelompok.forEach(k => {
+                const jumlahMember = dataPelanggan.filter(p => p.kelompok === k.nama).length;
+                tbody.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3 font-semibold">${k.nama}</td>
+                        <td class="p-3 text-gray-600">${k.ket || '-'}</td>
+                        <td class="p-3"><span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-semibold">${jumlahMember} Pelanggan</span></td>
+                        <td class="p-3">
+                            <button onclick="hapusKelompok('${k.nama}')" class="text-red-500 hover:text-red-700 text-xs font-semibold cursor-pointer">Hapus</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function hapusKelompok(nama) {
+            if(confirm(`Hapus kelompok ${nama}?`)) {
+                dataKelompok = dataKelompok.filter(k => k.nama !== nama);
+                localStorage.setItem('wifi_kelompok', JSON.stringify(dataKelompok));
+                renderKelompok();
+            }
+        }
+
+        // --- PELANGGAN ---
+        function toggleModalPelanggan(show) {
+            const modal = document.getElementById('modal-pelanggan');
+            if(show) {
+                // Update dropdown kelompok di form pelanggan
+                const selectKel = document.getElementById('p-kelompok');
+                selectKel.innerHTML = '';
+                dataKelompok.forEach(k => {
+                    selectKel.innerHTML += `<option value="${k.nama}">${k.nama}</option>`;
+                });
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+                document.getElementById('form-pelanggan').reset();
+            }
+        }
+
+        function tambahPelanggan(e) {
+            e.preventDefault();
+            const baru = {
+                id: Date.now(),
+                nama: document.getElementById('p-nama').value,
+                hp: document.getElementById('p-hp').value,
+                alamat: document.getElementById('p-alamat').value,
+                maps: document.getElementById('p-maps').value,
+                tgl: parseInt(document.getElementById('p-tgl').value),
+                paket: document.getElementById('p-paket').value,
+                harga: parseFloat(document.getElementById('p-harga').value),
+                fee: parseFloat(document.getElementById('p-fee').value),
+                kelompok: document.getElementById('p-kelompok').value
+            };
+
+            dataPelanggan.push(baru);
+            localStorage.setItem('wifi_pelanggan', JSON.stringify(dataPelanggan));
+
+            renderPelanggan();
+            toggleModalPelanggan(false);
+            alert('Pelanggan berhasil ditambahkan!');
+        }
+
+        function renderPelanggan() {
+            const tbody = document.getElementById('tabel-pelanggan-body');
+            tbody.innerHTML = '';
+            dataPelanggan.forEach(p => {
+                tbody.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3 font-semibold">${p.nama}</td>
+                        <td class="p-3">${p.hp}</td>
+                        <td class="p-3">${p.alamat} <br>${p.maps ? `<a href="\${p.maps}" target="_blank" class="text-blue-500 underline text-xs">Buka Maps</a>` : ''}</td>
+                        <td class="p-3">${p.tgl}</td>
+                        <td class="p-3">${p.paket} <br><span class="text-gray-500">Rp ${p.harga.toLocaleString()}</span></td>
+                        <td class="p-3">Rp ${p.fee.toLocaleString()}</td>
+                        <td class="p-3"><span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">${p.kelompok}</span></td>
+                        <td class="p-3">
+                            <button onclick="hapusPelanggan(${p.id})" class="text-red-500 hover:text-red-700 text-xs font-semibold cursor-pointer">Hapus</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function hapusPelanggan(id) {
+            if(confirm('Yakin ingin menghapus pelanggan ini?')) {
+                dataPelanggan = dataPelanggan.filter(p => p.id !== id);
+                localStorage.setItem('wifi_pelanggan', JSON.stringify(dataPelanggan));
+                renderPelanggan();
+            }
+        }
+
+        // --- TRANSAKSI ---
+        function initFormTransaksi() {
+            const select = document.getElementById('trx-pelanggan');
+            select.innerHTML = '<option value="">-- Pilih Pelanggan --</option>';
+            dataPelanggan.forEach(p => {
+                select.innerHTML += `<option value="${p.nama}" data-harga="${p.harga}" data-fee="${p.fee}" data-kelompok="${p.kelompok}">${p.nama} (${p.kelompok})</option>`;
+            });
+
+            select.onchange = function() {
+                const opt = select.options[select.selectedIndex];
+                if(opt.value) {
+                    const harga = parseFloat(opt.getAttribute('data-harga')) || 0;
+                    const fee = parseFloat(opt.getAttribute('data-fee')) || 0;
+                    document.getElementById('trx-nominal').value = harga;
+                    document.getElementById('trx-fee').value = fee;
+                    document.getElementById('trx-jumlah').value = harga - fee;
+                }
+            };
+
+            document.getElementById('trx-id').value = 'TRX-' + Math.floor(1000 + Math.random() * 9000);
+            document.getElementById('trx-tanggal').valueAsDate = new Date();
+        }
+
+        function simpanTransaksi() {
+            const nama = document.getElementById('trx-pelanggan').value;
+            const tanggal = document.getElementById('trx-tanggal').value;
+            const nominal = parseFloat(document.getElementById('trx-nominal').value) || 0;
+            const fee = parseFloat(document.getElementById('trx-fee').value) || 0;
+            const jumlah = parseFloat(document.getElementById('trx-jumlah').value) || (nominal - fee);
+            const idTrx = document.getElementById('trx-id').value;
+
+            if(!nama || !tanggal) {
+                alert('Pilih pelanggan dan tanggal terlebih dahulu!');
+                return;
+            }
+
+            const p = dataPelanggan.find(item => item.nama === nama);
+            const kelompok = p ? p.kelompok : 'Umum';
+
+            dataTransaksi.push({ id: idTrx, kelompok, nama, tanggal, nominal, fee, jumlah, status: 'Lunas' });
+            localStorage.setItem('wifi_transaksi', JSON.stringify(dataTransaksi));
+
+            alert('Transaksi pembayaran berhasil disimpan!');
+            switchTab('laporan');
+        }
+
+        // --- LAPORAN ---
+        function initFilterLaporan() {
+            const filterKelompok = document.getElementById('filter-kelompok');
+            filterKelompok.innerHTML = '<option value="">Semua Kelompok</option>';
+            dataKelompok.forEach(k => {
+                filterKelompok.innerHTML += `<option value="${k.nama}">${k.nama}</option>`;
+            });
+
+            const bulanIni = new Date().toISOString().slice(0, 7);
+            if(!document.getElementById('filter-bulan').value) {
+                document.getElementById('filter-bulan').value = bulanIni;
+            }
+        }
+
+        function toggleFilterPeriode() {
+            const jenis = document.getElementById('filter-jenis').value;
+            if(jenis === 'bulanan') {
+                document.getElementById('wrapper-bulan').classList.remove('hidden');
+                document.getElementById('wrapper-tahun').classList.add('hidden');
+            } else {
+                document.getElementById('wrapper-bulan').classList.add('hidden');
+                document.getElementById('wrapper-tahun').classList.remove('hidden');
+            }
+            renderLaporan();
+        }
+
+        function renderLaporan() {
+            const jenisLaporan = document.getElementById('filter-jenis').value;
+            const bulanVal = document.getElementById('filter-bulan').value; // format YYYY-MM
+            const tahunVal = document.getElementById('filter-tahun').value; // format YYYY
+            const kelompokVal = document.getElementById('filter-kelompok').value;
+            const statusVal = document.getElementById('filter-status').value;
+
+            const tbody = document.getElementById('tabel-laporan-body');
+            tbody.innerHTML = '';
+
+            // Filter data transaksi berdasarkan kriteria
+            const filtered = dataTransaksi.filter(t => {
+                // Cek periode tanggal bayar jika status Lunas
+                let matchPeriode = true;
+                if(t.status === 'Lunas' && t.tanggal !== '-') {
+                    if(jenisLaporan === 'bulanan' && bulanVal) {
+                        matchPeriode = t.tanggal.startsWith(bulanVal);
+                    } else if(jenisLaporan === 'tahunan' && tahunVal) {
+                        matchPeriode = t.tanggal.startsWith(tahunVal);
+                    }
+                } else if(t.status === 'Belum Bayar') {
+                    // Untuk belum bayar, bisa disesuaikan tampil atau difilter sesuai kebutuhan
+                    matchPeriode = true; 
+                }
+
+                let matchKelompok = kelompokVal ? t.kelompok === kelompokVal : true;
+                let matchStatus = statusVal ? t.status === statusVal : true;
+
+                return matchPeriode && matchKelompok && matchStatus;
+            });
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-gray-500">Tidak ada data laporan untuk filter ini.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(t => {
+                const badgeColor = t.status === 'Lunas' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700';
+                tbody.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3">${t.id}</td>
+                        <td class="p-3">${t.kelompok}</td>
+                        <td class="p-3 font-semibold">${t.nama}</td>
+                        <td class="p-3">${t.tanggal}</td>
+                        <td class="p-3">Rp ${t.nominal.toLocaleString()}</td>
+                        <td class="p-3">Rp ${t.fee.toLocaleString()}</td>
+                        <td class="p-3 font-semibold">Rp ${t.jumlah.toLocaleString()}</td>
+                        <td class="p-3"><span class="${badgeColor} px-2 py-1 rounded text-xs font-medium">${t.status}</span></td>
+                    </tr>
+                `;
+            });
+        }
+
+        // Inisialisasi awal
+        renderPelanggan();
+    </script>
+</body>
+</html>
